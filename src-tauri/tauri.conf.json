@@ -12,9 +12,8 @@
   "app": {
     "windows": [
       {
-        "title": "uavsar",
-        "width": 800,
-        "height": 600
+        "title": "UAVSAR",
+        "fullscreen": true
       }
     ],
     "security": {
