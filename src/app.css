@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
 @theme {
-    --color-background: var(--color-zinc-800);
+    --color-background: var(--color-gray-800);
+    --color-accent-1: var(--color-green-500);
+    --color-accent-1-dark: var(--color-green-600);
+    --color-accent-2: var(--color-teal-500);
+    --color-accent-2-dark: var(--color-teal-600);
+}
+
+.grad-fill {
+    @apply rounded-lg bg-gradient-to-bl from-accent-1 to-accent-2 hover:from-accent-1-dark hover:to-accent-2-dark transition-colors duration-200;
 }
