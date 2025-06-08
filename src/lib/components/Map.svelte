@@ -1,7 +1,14 @@
 <script lang="ts">
     import { onMount } from "svelte";
+    import { areaCoordsStore, flightPathCoordsStore } from "$lib/stores/stores";
     import maplibregl from "maplibre-gl";
-    import type { FeatureCollection, Point, Polygon } from "geojson";
+    import type {
+        Feature,
+        FeatureCollection,
+        LineString,
+        Point,
+        Polygon,
+    } from "geojson";
 
     let mapContainer: HTMLDivElement;
     let area_coordinates: [number, number][] = [];
@@ -11,6 +18,8 @@
 
     function resetArea() {
         area_coordinates = [];
+        areaCoordsStore.set([]);
+        flightPathCoordsStore.set([]);
         const emptyPointData: FeatureCollection<Point> = {
             type: "FeatureCollection",
             features: [],
@@ -112,6 +121,61 @@
                     "circle-color": "#1e2939",
                 },
             });
+
+            map.addSource("flight-path", {
+                type: "geojson",
+                data: {
+                    type: "FeatureCollection",
+                    features: [],
+                },
+            });
+
+            map.addLayer({
+                id: "flight-path-line",
+                type: "line",
+                source: "flight-path",
+                layout: {
+                    "line-join": "round",
+                    "line-cap": "round",
+                },
+                paint: {
+                    "line-color": "#000000",
+                    "line-width": 3,
+                },
+            });
+
+            flightPathCoordsStore.subscribe((coords: [number, number][]) => {
+                console.log("coords:", JSON.stringify(coords));
+                if (!map || !map.getSource("flight-path")) return;
+
+                const source = map.getSource(
+                    "flight-path",
+                ) as maplibregl.GeoJSONSource;
+
+                if (coords.length < 2) {
+                    source.setData({
+                        type: "FeatureCollection",
+                        features: [],
+                    });
+                    return;
+                }
+
+                const lineFeature: Feature<LineString> = {
+                    type: "Feature",
+                    geometry: {
+                        type: "LineString",
+                        coordinates: coords,
+                    },
+                    properties: {},
+                };
+
+                const flightPathData: FeatureCollection<LineString> = {
+                    type: "FeatureCollection",
+                    features: [lineFeature],
+                };
+
+                source.setData(flightPathData);
+            });
         });
 
         // Add a new point to the search area on double click
@@ -121,6 +185,7 @@
                 point.lngLat.lat,
             ];
             area_coordinates.push(lngLat);
+            areaCoordsStore.set([...area_coordinates]);
 
             // Create the new search area polygon feature collection
             const polygon: FeatureCollection<Polygon> = {
@@ -190,6 +255,7 @@
             if (!isDragging || selectedPointId === null) return;
 
             area_coordinates[selectedPointId] = [e.lngLat.lng, e.lngLat.lat];
+            areaCoordsStore.set([...area_coordinates]);
 
             const pointData: FeatureCollection<Point> = {
                 type: "FeatureCollection",

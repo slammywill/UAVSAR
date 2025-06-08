@@ -13,7 +13,7 @@
     "windows": [
       {
         "title": "UAVSAR",
-        "fullscreen": true
+        "fullscreen": false
       }
     ],
     "security": {
