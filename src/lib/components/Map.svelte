@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import { areaCoordsStore, flightPathCoordsStore } from "$lib/stores/stores";
+    import { areaCoordsStore, flightPathResultStore } from "$lib/stores/stores";
     import maplibregl from "maplibre-gl";
     import type {
         Feature,
@@ -19,17 +19,19 @@
     function resetArea() {
         area_coordinates = [];
         areaCoordsStore.set([]);
-        flightPathCoordsStore.set([]);
+        flightPathResultStore.set(null);
         const emptyPointData: FeatureCollection<Point> = {
             type: "FeatureCollection",
             features: [],
         };
-
         const emptyPolygonData: FeatureCollection<Polygon> = {
             type: "FeatureCollection",
             features: [],
         };
 
+        const flightPathSource = map?.getSource(
+            "flight-path"
+        ) as maplibregl.GeoJSONSource;
         const pointSource = map?.getSource(
             "click-points",
         ) as maplibregl.GeoJSONSource;
@@ -37,9 +39,11 @@
             "drawn-polygon",
         ) as maplibregl.GeoJSONSource;
 
-        if (pointSource && polygonSource) {
+        if (pointSource && polygonSource && flightPathSource) {
+            flightPathSource.setData(emptyPointData);
             pointSource.setData(emptyPointData);
             polygonSource.setData(emptyPolygonData);
+
         }
     }
 
@@ -144,38 +148,44 @@
                 },
             });
 
-            flightPathCoordsStore.subscribe((coords: [number, number][]) => {
-                console.log("coords:", JSON.stringify(coords));
-                if (!map || !map.getSource("flight-path")) return;
+            flightPathResultStore.subscribe(
+                (result: FlightPathResult | null) => {
+                    if (!result) return;
 
-                const source = map.getSource(
-                    "flight-path",
-                ) as maplibregl.GeoJSONSource;
+                    const coords = result.waypoints;
+                    console.log(coords);
 
-                if (coords.length < 2) {
-                    source.setData({
+                    if (!map || !map.getSource("flight-path")) return;
+
+                    const source = map.getSource(
+                        "flight-path",
+                    ) as maplibregl.GeoJSONSource;
+
+                    if (coords.length < 2) {
+                        source.setData({
+                            type: "FeatureCollection",
+                            features: [],
+                        });
+                        return;
+                    }
+
+                    const lineFeature: Feature<LineString> = {
+                        type: "Feature",
+                        geometry: {
+                            type: "LineString",
+                            coordinates: coords,
+                        },
+                        properties: {},
+                    };
+
+                    const flightPathData: FeatureCollection<LineString> = {
                         type: "FeatureCollection",
-                        features: [],
-                    });
-                    return;
-                }
+                        features: [lineFeature],
+                    };
 
-                const lineFeature: Feature<LineString> = {
-                    type: "Feature",
-                    geometry: {
-                        type: "LineString",
-                        coordinates: coords,
-                    },
-                    properties: {},
-                };
-
-                const flightPathData: FeatureCollection<LineString> = {
-                    type: "FeatureCollection",
-                    features: [lineFeature],
-                };
-
-                source.setData(flightPathData);
-            });
+                    source.setData(flightPathData);
+                },
+            );
         });
 
         // Add a new point to the search area on double click

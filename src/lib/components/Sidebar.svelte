@@ -1,24 +1,7 @@
 <script lang="ts">
-    import { invoke } from "@tauri-apps/api/core";
-    import { get } from "svelte/store";
-    import { areaCoordsStore, flightPathCoordsStore } from "$lib/stores/stores";
+    import { areaCoordsStore } from "$lib/stores/stores";
+    import { generateFlightPath } from "$lib/common/common";
 
-    let flightCoords: [number, number][] = [];
-
-    async function generateFlightpath() {
-        const coords = get(areaCoordsStore);
-
-        flightCoords = await invoke<[number, number][]>("generate_flightpath", {
-            coords: coords,
-            drone: {
-                fov: 60, // example FoV in degrees
-                altitude: 100, // example altitude in meters
-                overlap: 55, // example 20% overlap
-            },
-        });
-
-        flightPathCoordsStore.set(flightCoords);
-    }
 </script>
 
 <div
@@ -31,7 +14,7 @@
     </div>
     <button
         class="p-4 align-bottom text-white grad-fill"
-        on:click={generateFlightpath}
+        on:click={generateFlightPath}
     >
         Generate Flightpath
     </button>

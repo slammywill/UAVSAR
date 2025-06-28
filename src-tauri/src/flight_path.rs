@@ -4,15 +4,23 @@ use geo::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Drone {
-    pub fov: f64,      // degrees
-    pub altitude: i32, // meters
-    pub overlap: i32,  // percent
+    pub fov: f64,       // degrees
+    pub altitude: i32,  // meters
+    pub overlap: i32,   // percent
+    pub speed: f64,     // ms^-1
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct FlightPlanResult {
+    pub waypoints: Vec<[f64; 2]>,
+    pub search_area: f64,
+    pub est_flight_time: f64,
 }
 
 #[tauri::command]
-pub fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> Vec<[f64; 2]> {
+pub fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> FlightPlanResult {
     let points: Vec<Coord> = coords.iter().map(|c| Coord::from((c[0], c[1]))).collect();
     let polygon = Polygon::new(LineString::from(points.clone()), vec![]);
 
@@ -64,5 +72,5 @@ pub fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> Vec<[f64; 2]>
         toggle = !toggle;
     }
 
-    flight_path
+     FlightPlanResult {waypoints: flight_path, search_area: 0.0, est_flight_time: 0.0}
 }
