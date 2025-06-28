@@ -25,7 +25,7 @@ pub fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> FlightPlanRes
     let polygon = Polygon::new(LineString::from(points.clone()), vec![]);
     let mbr = MinimumRotatedRect::minimum_rotated_rect(&polygon).unwrap();
 
-    // Calculate the area of the search polygon (approximate using bounding box)
+    // Calculate the area of the search polygon
     let bbox = polygon.bounding_rect().unwrap();
     let search_area = (bbox.max().x - bbox.min().x) * (bbox.max().y - bbox.min().y);
 
@@ -47,29 +47,47 @@ pub fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> FlightPlanRes
         }
     }
 
-    // Calculate ground coverage per photo
+    // Calculate ground coverage per photo and spacing
     let fov_rad = drone.fov.to_radians();
     let ground_width = 2.0 * (drone.altitude as f64) * (fov_rad / 2.0).tan();
-    
-    // Calculate spacing between waypoints considering overlap
     let overlap_factor = 1.0 - (drone.overlap as f64 / 100.0);
-    let spacing = ground_width * overlap_factor;
-    
-    // Convert spacing from meters to degrees (approximate)
-    // Using rough conversion: 1 degree ≈ 111,000 meters at equator
-    let spacing_deg = spacing / 111000.0;
+    let spacing_meters = ground_width * overlap_factor;
 
-    // Create rotation matrix for the longest side angle
+    // Convert all coordinates to a local meter-based coordinate system
+    // Use the center of the bounding box as origin
+    let center_x = (bbox.max().x + bbox.min().x) / 2.0;
+    let center_y = (bbox.max().y + bbox.min().y) / 2.0;
+    
+    // Convert degrees to meters (flat plane approximation)
+    let meters_per_degree = 111320.0; // approximate at mid-latitudes
+    
+    // Convert polygon to meter coordinates
+    let polygon_meters: Vec<Coord> = points.iter().map(|p| {
+        Coord {
+            x: (p.x - center_x) * meters_per_degree,
+            y: (p.y - center_y) * meters_per_degree,
+        }
+    }).collect();
+    let polygon_m = Polygon::new(LineString::from(polygon_meters), vec![]);
+    
+    // Convert MBR to meter coordinates and recalculate
+    let mbr_meters: Vec<Coord> = mbr_coords.iter().map(|p| {
+        Coord {
+            x: (p.x - center_x) * meters_per_degree,
+            y: (p.y - center_y) * meters_per_degree,
+        }
+    }).collect();
+
+    // Find bounding box of MBR in meter coordinates
     let cos_angle = longest_side_angle.cos();
     let sin_angle = longest_side_angle.sin();
-
-    // Get the bounding box of the MBR in the rotated coordinate system
+    
     let mut min_x = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
     let mut min_y = f64::INFINITY;
     let mut max_y = f64::NEG_INFINITY;
 
-    for coord in mbr_coords.iter() {
+    for coord in mbr_meters.iter() {
         // Rotate coordinate to align with longest side
         let rotated_x = coord.x * cos_angle + coord.y * sin_angle;
         let rotated_y = -coord.x * sin_angle + coord.y * cos_angle;
@@ -80,7 +98,7 @@ pub fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> FlightPlanRes
         max_y = max_y.max(rotated_y);
     }
 
-    // Generate lawnmower pattern waypoints
+    // Generate waypoints in meter space with consistent spacing
     let mut waypoints = Vec::new();
     let mut y = min_y;
     let mut going_right = true;
@@ -90,45 +108,50 @@ pub fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> FlightPlanRes
             // Left to right pass
             let mut x = min_x;
             while x <= max_x {
-                // Rotate back to original coordinate system
-                let world_x = x * cos_angle - y * sin_angle;
-                let world_y = x * sin_angle + y * cos_angle;
-                let point = Coord { x: world_x, y: world_y };
+                // Rotate back to meter coordinate system
+                let meter_x = x * cos_angle - y * sin_angle;
+                let meter_y = x * sin_angle + y * cos_angle;
+                let point_m = Coord { x: meter_x, y: meter_y };
                 
-                // Check if the point is inside the original polygon
-                if polygon.contains(&point) {
+                // Check if the point is inside the polygon
+                if polygon_m.contains(&point_m) {
+                    // Convert back to lat/lon
+                    let world_x = center_x + meter_x / meters_per_degree;
+                    let world_y = center_y + meter_y / meters_per_degree;
                     waypoints.push([world_x, world_y]);
                 }
-                x += spacing_deg;
+                x += spacing_meters;
             }
         } else {
             // Right to left pass
             let mut x = max_x;
             while x >= min_x {
-                // Rotate back to original coordinate system
-                let world_x = x * cos_angle - y * sin_angle;
-                let world_y = x * sin_angle + y * cos_angle;
-                let point = Coord { x: world_x, y: world_y };
+                // Rotate back to meter coordinate system
+                let meter_x = x * cos_angle - y * sin_angle;
+                let meter_y = x * sin_angle + y * cos_angle;
+                let point_m = Coord { x: meter_x, y: meter_y };
                 
-                // Check if the point is inside the original polygon
-                if polygon.contains(&point) {
+                // Check if the point is inside the polygon
+                if polygon_m.contains(&point_m) {
+                    // Convert back to lat/lon
+                    let world_x = center_x + meter_x / meters_per_degree;
+                    let world_y = center_y + meter_y / meters_per_degree;
                     waypoints.push([world_x, world_y]);
                 }
-                x -= spacing_deg;
+                x -= spacing_meters;
             }
         }
         
         going_right = !going_right;
-        y += spacing_deg;
+        y += spacing_meters;
     }
 
-    // Calculate estimated flight time
+    // Calculate flight time using meter distances
     let mut total_distance = 0.0;
     for i in 1..waypoints.len() {
-        let dx = waypoints[i][0] - waypoints[i-1][0];
-        let dy = waypoints[i][1] - waypoints[i-1][1];
-        // Convert degrees to meters (approximate)
-        let distance_meters = (dx * dx + dy * dy).sqrt() * 111000.0;
+        let dx = (waypoints[i][0] - waypoints[i-1][0]) * meters_per_degree;
+        let dy = (waypoints[i][1] - waypoints[i-1][1]) * meters_per_degree;
+        let distance_meters = (dx * dx + dy * dy).sqrt();
         total_distance += distance_meters;
     }
     let est_flight_time = total_distance / drone.speed;
