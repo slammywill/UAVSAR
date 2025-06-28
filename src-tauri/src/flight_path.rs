@@ -1,6 +1,6 @@
 use geo::{
-    algorithm::{bounding_rect::BoundingRect, contains::Contains},
-    Coord, LineString, Polygon,
+    algorithm::{bounding_rect::BoundingRect, contains::Contains}, 
+    Coord, LineString, MinimumRotatedRect, Polygon
 };
 use serde::{Deserialize, Serialize};
 
@@ -23,54 +23,119 @@ pub struct FlightPlanResult {
 pub fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> FlightPlanResult {
     let points: Vec<Coord> = coords.iter().map(|c| Coord::from((c[0], c[1]))).collect();
     let polygon = Polygon::new(LineString::from(points.clone()), vec![]);
+    let mbr = MinimumRotatedRect::minimum_rotated_rect(&polygon).unwrap();
 
-    let bounding_rect = polygon.bounding_rect().unwrap();
+    // Calculate the area of the search polygon (approximate using bounding box)
+    let bbox = polygon.bounding_rect().unwrap();
+    let search_area = (bbox.max().x - bbox.min().x) * (bbox.max().y - bbox.min().y);
 
-    // Estimate ground coverage dimensions of each photo (simple planar projection)
-    let fov_rad = drone.fov.to_radians();
-    let footprint = 2.0 * (drone.altitude as f64) * (fov_rad / 2.0).tan(); // meters
-    let overlap = drone.overlap as f64 / 100.0;
-    let step = footprint * (1.0 - overlap); // spacing between points in meters
-
-    // Convert bounding box lat/lon to meters using a naive equirectangular projection for spacing
-    // Assume 1 deg lat ~ 111_000m, lon adjusted by cos(latitude)
-    let lat_avg = (bounding_rect.min().y + bounding_rect.max().y) / 2.0;
-    let lat_factor = 111_000.0;
-    let lon_factor = 111_000.0 * lat_avg.to_radians().cos();
-
-    let mut flight_path = Vec::new();
-
-    let min_lat = bounding_rect.min().y;
-    let max_lat = bounding_rect.max().y;
-    let min_lon = bounding_rect.min().x;
-    let max_lon = bounding_rect.max().x;
-
-    let lat_step_deg = step / lat_factor;
-    let lon_step_deg = step / lon_factor;
-
-    let mut y = min_lat;
-    let mut toggle = false;
-
-    while y <= max_lat {
-        let mut row = Vec::new();
-        let mut x = min_lon;
-
-        while x <= max_lon {
-            let coord = Coord::from((x, y));
-            if polygon.contains(&coord) {
-                row.push([x, y]);
-            }
-            x += lon_step_deg;
+    // Get MBR vertices and find the longest side
+    let mbr_coords = mbr.exterior().coords().collect::<Vec<_>>();
+    let mut max_length = 0.0;
+    let mut longest_side_angle = 0.0;
+    
+    for i in 0..mbr_coords.len() - 1 {
+        let p1 = mbr_coords[i];
+        let p2 = mbr_coords[i + 1];
+        let dx = p2.x - p1.x;
+        let dy = p2.y - p1.y;
+        let length = (dx * dx + dy * dy).sqrt();
+        
+        if length > max_length {
+            max_length = length;
+            longest_side_angle = dy.atan2(dx);
         }
-
-        if toggle {
-            row.reverse();
-        }
-
-        flight_path.extend(row);
-        y += lat_step_deg;
-        toggle = !toggle;
     }
 
-     FlightPlanResult {waypoints: flight_path, search_area: 0.0, est_flight_time: 0.0}
+    // Calculate ground coverage per photo
+    let fov_rad = drone.fov.to_radians();
+    let ground_width = 2.0 * (drone.altitude as f64) * (fov_rad / 2.0).tan();
+    
+    // Calculate spacing between waypoints considering overlap
+    let overlap_factor = 1.0 - (drone.overlap as f64 / 100.0);
+    let spacing = ground_width * overlap_factor;
+    
+    // Convert spacing from meters to degrees (approximate)
+    // Using rough conversion: 1 degree ≈ 111,000 meters at equator
+    let spacing_deg = spacing / 111000.0;
+
+    // Create rotation matrix for the longest side angle
+    let cos_angle = longest_side_angle.cos();
+    let sin_angle = longest_side_angle.sin();
+
+    // Get the bounding box of the MBR in the rotated coordinate system
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+
+    for coord in mbr_coords.iter() {
+        // Rotate coordinate to align with longest side
+        let rotated_x = coord.x * cos_angle + coord.y * sin_angle;
+        let rotated_y = -coord.x * sin_angle + coord.y * cos_angle;
+        
+        min_x = min_x.min(rotated_x);
+        max_x = max_x.max(rotated_x);
+        min_y = min_y.min(rotated_y);
+        max_y = max_y.max(rotated_y);
+    }
+
+    // Generate lawnmower pattern waypoints
+    let mut waypoints = Vec::new();
+    let mut y = min_y;
+    let mut going_right = true;
+
+    while y <= max_y {
+        if going_right {
+            // Left to right pass
+            let mut x = min_x;
+            while x <= max_x {
+                // Rotate back to original coordinate system
+                let world_x = x * cos_angle - y * sin_angle;
+                let world_y = x * sin_angle + y * cos_angle;
+                let point = Coord { x: world_x, y: world_y };
+                
+                // Check if the point is inside the original polygon
+                if polygon.contains(&point) {
+                    waypoints.push([world_x, world_y]);
+                }
+                x += spacing_deg;
+            }
+        } else {
+            // Right to left pass
+            let mut x = max_x;
+            while x >= min_x {
+                // Rotate back to original coordinate system
+                let world_x = x * cos_angle - y * sin_angle;
+                let world_y = x * sin_angle + y * cos_angle;
+                let point = Coord { x: world_x, y: world_y };
+                
+                // Check if the point is inside the original polygon
+                if polygon.contains(&point) {
+                    waypoints.push([world_x, world_y]);
+                }
+                x -= spacing_deg;
+            }
+        }
+        
+        going_right = !going_right;
+        y += spacing_deg;
+    }
+
+    // Calculate estimated flight time
+    let mut total_distance = 0.0;
+    for i in 1..waypoints.len() {
+        let dx = waypoints[i][0] - waypoints[i-1][0];
+        let dy = waypoints[i][1] - waypoints[i-1][1];
+        // Convert degrees to meters (approximate)
+        let distance_meters = (dx * dx + dy * dy).sqrt() * 111000.0;
+        total_distance += distance_meters;
+    }
+    let est_flight_time = total_distance / drone.speed;
+
+    FlightPlanResult {
+        waypoints,
+        search_area,
+        est_flight_time,
+    }
 }
