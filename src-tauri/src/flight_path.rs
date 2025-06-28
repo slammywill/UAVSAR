@@ -1,5 +1,5 @@
 use geo::{
-    algorithm::{bounding_rect::BoundingRect, contains::Contains}, 
+    algorithm::{bounding_rect::BoundingRect, contains::Contains, area::Area}, 
     Coord, LineString, MinimumRotatedRect, Polygon
 };
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ pub struct Drone {
 #[derive(Serialize, Deserialize)]
 pub struct FlightPlanResult {
     pub waypoints: Vec<[f64; 2]>,
-    pub search_area: f64,
+    pub search_area: f64,  // now in square kilometers
     pub est_flight_time: f64,
 }
 
@@ -27,7 +27,27 @@ pub fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> FlightPlanRes
 
     // Calculate the area of the search polygon
     let bbox = polygon.bounding_rect().unwrap();
-    let search_area = (bbox.max().x - bbox.min().x) * (bbox.max().y - bbox.min().y);
+
+    // Convert all coordinates to a local meter-based coordinate system
+    // Use the center of the bounding box as origin
+    let center_x = (bbox.max().x + bbox.min().x) / 2.0;
+    let center_y = (bbox.max().y + bbox.min().y) / 2.0;
+    
+    // Convert degrees to meters (flat plane approximation)
+    let meters_per_degree = 111320.0; // approximate at mid-latitudes
+    
+    // Convert polygon to meter coordinates
+    let polygon_meters: Vec<Coord> = points.iter().map(|p| {
+        Coord {
+            x: (p.x - center_x) * meters_per_degree,
+            y: (p.y - center_y) * meters_per_degree,
+        }
+    }).collect();
+    let polygon_m = Polygon::new(LineString::from(polygon_meters), vec![]);
+    
+    // Calculate actual polygon area in square meters, then convert to square kilometers
+    let area_sq_meters = polygon_m.unsigned_area();
+    let search_area = area_sq_meters / 1_000_000.0; // convert to square kilometers
 
     // Get MBR vertices and find the longest side
     let mbr_coords = mbr.exterior().coords().collect::<Vec<_>>();
@@ -53,23 +73,6 @@ pub fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> FlightPlanRes
     let overlap_factor = 1.0 - (drone.overlap as f64 / 100.0);
     let spacing_meters = ground_width * overlap_factor;
 
-    // Convert all coordinates to a local meter-based coordinate system
-    // Use the center of the bounding box as origin
-    let center_x = (bbox.max().x + bbox.min().x) / 2.0;
-    let center_y = (bbox.max().y + bbox.min().y) / 2.0;
-    
-    // Convert degrees to meters (flat plane approximation)
-    let meters_per_degree = 111320.0; // approximate at mid-latitudes
-    
-    // Convert polygon to meter coordinates
-    let polygon_meters: Vec<Coord> = points.iter().map(|p| {
-        Coord {
-            x: (p.x - center_x) * meters_per_degree,
-            y: (p.y - center_y) * meters_per_degree,
-        }
-    }).collect();
-    let polygon_m = Polygon::new(LineString::from(polygon_meters), vec![]);
-    
     // Convert MBR to meter coordinates and recalculate
     let mbr_meters: Vec<Coord> = mbr_coords.iter().map(|p| {
         Coord {

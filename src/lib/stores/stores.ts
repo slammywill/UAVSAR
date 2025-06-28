@@ -16,6 +16,6 @@ export interface Drone {
 
 export interface FlightPathResult {
     waypoints: Coordinate[];
-    searchArea: number,
-    estFlightTime: number,
+    search_area: number,
+    est_flight_time: number,
 }

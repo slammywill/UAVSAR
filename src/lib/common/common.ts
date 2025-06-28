@@ -24,6 +24,7 @@ export async function generateFlightPath() {
                 drone: drone
             });
         flightPathResultStore.set(flightPathResult);
+        console.log(flightPathResult)
     } catch (error) {
         console.error("Failed to generate flight path:", error);
         flightPathResultStore.set(null);

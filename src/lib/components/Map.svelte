@@ -153,7 +153,6 @@
                     if (!result) return;
 
                     const coords = result.waypoints;
-                    console.log(coords);
 
                     if (!map || !map.getSource("flight-path")) return;
 
