@@ -72,6 +72,7 @@ pub fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> FlightPlanRes
     let ground_width = 2.0 * (drone.altitude as f64) * (fov_rad / 2.0).tan();
     let overlap_factor = 1.0 - (drone.overlap as f64 / 100.0);
     let spacing_meters = ground_width * overlap_factor;
+    let buffer_width = ground_width / 2.0;
 
     // Convert MBR to meter coordinates and recalculate
     let mbr_meters: Vec<Coord> = mbr_coords.iter().map(|p| {
@@ -100,6 +101,12 @@ pub fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> FlightPlanRes
         min_y = min_y.min(rotated_y);
         max_y = max_y.max(rotated_y);
     }
+
+    // Add buffer to ensure coverage of the area close to the edges
+    min_x -= buffer_width;
+    max_x += buffer_width;
+    min_y -= buffer_width;
+    max_y += buffer_width;
 
     // Generate waypoints in meter space with consistent spacing
     let mut waypoints = Vec::new();
