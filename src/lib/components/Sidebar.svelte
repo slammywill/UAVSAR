@@ -4,32 +4,103 @@
 
     const ALTITUDE = 100;
     const OVERLAP = 55;
+    const MIN_SPEED = 5; // Minimum reasonable speed in km/h
+    const MAX_SPEED = 200; // Maximum reasonable speed in km/h
+    const MIN_FOV = 10; // Minimum reasonable FOV
+    const MAX_FOV = 180; // Maximum FOV
 
     let showDronePopup = false;
     let droneModel = "";
-    let droneSpeed = "";
-    let cameraFov = "";
+    let droneSpeed: number | undefined;
+    let cameraFov: number | undefined;
+    
+    // Input string values for controlled inputs
+    let droneSpeedInput = "";
+    let cameraFovInput = "";
 
-    // Initialize local variables with drone store values
+    // Validation state
+    let modelError = "";
+    let speedError = "";
+    let fovError = "";
+
+    // Reactive validation
     $: {
-        if ($droneStore) {
-            droneModel = $droneStore.model || "";
-            droneSpeed = $droneStore.speed ? $droneStore.speed.toString() : "";
-            cameraFov = $droneStore.fov ? $droneStore.fov.toString() : "";
+        // Validate model
+        if (!droneModel?.trim()) {
+            modelError = "Drone model is required";
+        } else if (droneModel.trim().length < 2) {
+            modelError = "Drone model must be at least 2 characters";
+        } else {
+            modelError = "";
+        }
+
+        // Validate speed
+        if (!droneSpeedInput.trim()) {
+            speedError = "Speed is required";
+            droneSpeed = undefined;
+        } else {
+            const speed = parseFloat(droneSpeedInput);
+            if (isNaN(speed)) {
+                speedError = "Speed must be a valid number";
+                droneSpeed = undefined;
+            } else if (speed < MIN_SPEED) {
+                speedError = `Speed must be at least ${MIN_SPEED} km/h`;
+                droneSpeed = undefined;
+            } else if (speed > MAX_SPEED) {
+                speedError = `Speed must not exceed ${MAX_SPEED} km/h`;
+                droneSpeed = undefined;
+            } else {
+                speedError = "";
+                droneSpeed = speed;
+            }
+        }
+
+        // Validate FOV
+        if (!cameraFovInput.trim()) {
+            fovError = "Camera FOV is required";
+            cameraFov = undefined;
+        } else {
+            const fov = parseFloat(cameraFovInput);
+            if (isNaN(fov)) {
+                fovError = "FOV must be a valid number";
+                cameraFov = undefined;
+            } else if (fov < MIN_FOV) {
+                fovError = `FOV must be at least ${MIN_FOV} degrees`;
+                cameraFov = undefined;
+            } else if (fov > MAX_FOV) {
+                fovError = `FOV must not exceed ${MAX_FOV} degrees`;
+                cameraFov = undefined;
+            } else {
+                fovError = "";
+                cameraFov = fov;
+            }
         }
     }
+
+    // Check if form is valid
+    $: isSaveDisabled = 
+        !droneModel?.trim() ||
+        droneSpeed === undefined ||
+        cameraFov === undefined ||
+        modelError !== "" ||
+        speedError !== "" ||
+        fovError !== "";
 
     function formatSearchArea(area: number | undefined | null) {
         return area ? `${area.toFixed(2)} km²` : "—";
     }
 
     function openDronePopup() {
-        // Update local variables with current store values when opening popup
-        if ($droneStore) {
-            droneModel = $droneStore.model || "";
-            droneSpeed = $droneStore.speed ? $droneStore.speed.toString() : "";
-            cameraFov = $droneStore.fov ? $droneStore.fov.toString() : "";
-        }
+        // Reset form when opening
+        droneModel = $droneStore?.model || "";
+        droneSpeedInput = $droneStore?.speed?.toString() || "";
+        cameraFovInput = $droneStore?.fov?.toString() || "";
+        
+        // Clear errors
+        modelError = "";
+        speedError = "";
+        fovError = "";
+        
         showDronePopup = true;
     }
 
@@ -38,19 +109,20 @@
     }
 
     function saveDroneSettings() {
-        // Handle saving drone settings here
+        // Double-check validation before saving
+        if (isSaveDisabled) return;
+
         droneStore?.set({
-            model: droneModel,
-            fov: parseFloat(cameraFov),
+            model: droneModel.trim(),
+            fov: cameraFov!,
             altitude: ALTITUDE,
             overlap: OVERLAP,
-            speed: parseFloat(droneSpeed),
+            speed: droneSpeed!,
         });
         closeDronePopup();
     }
 
     function handlePopupClick(event: MouseEvent) {
-        // Close popup if clicking outside the modal content
         if (event.target === event.currentTarget) {
             closeDronePopup();
         }
@@ -59,6 +131,32 @@
     function handlePopupKey(event: KeyboardEvent) {
         if (event.key === "Escape") {
             closeDronePopup();
+        }
+    }
+
+    function handleSpeedInput(event: Event) {
+        const target = event.target as HTMLInputElement;
+        // Allow only numbers and decimal point
+        const filtered = target.value.replace(/[^\d.]/g, '');
+        // Prevent multiple decimal points
+        const parts = filtered.split('.');
+        if (parts.length > 2) {
+            droneSpeedInput = parts[0] + '.' + parts.slice(1).join('');
+        } else {
+            droneSpeedInput = filtered;
+        }
+    }
+
+    function handleFovInput(event: Event) {
+        const target = event.target as HTMLInputElement;
+        // Allow only numbers and decimal point
+        const filtered = target.value.replace(/[^\d.]/g, '');
+        // Prevent multiple decimal points
+        const parts = filtered.split('.');
+        if (parts.length > 2) {
+            cameraFovInput = parts[0] + '.' + parts.slice(1).join('');
+        } else {
+            cameraFovInput = filtered;
         }
     }
 </script>
@@ -186,8 +284,13 @@
                         type="text"
                         bind:value={droneModel}
                         placeholder="e.g., DJI Mavic 3"
-                        class="w-full px-3 py-2 bg-background-accent/50 border border-slate-700/30 rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        class={`w-full px-3 py-2 bg-background-accent/50 border rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:border-transparent ${
+                            modelError ? 'border-red-500 focus:ring-red-500' : 'border-slate-700/30 focus:ring-emerald-500'
+                        }`}
                     />
+                    {#if modelError}
+                        <p class="text-red-400 text-xs mt-1">{modelError}</p>
+                    {/if}
                 </div>
 
                 <!-- Speed -->
@@ -200,11 +303,17 @@
                     </label>
                     <input
                         id="droneSpeed"
-                        type="number"
-                        bind:value={droneSpeed}
-                        placeholder="e.g., 65"
-                        class="w-full px-3 py-2 bg-background-accent/50 border border-slate-700/30 rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        type="text"
+                        bind:value={droneSpeedInput}
+                        on:input={handleSpeedInput}
+                        placeholder={`${MIN_SPEED}-${MAX_SPEED}`}
+                        class={`w-full px-3 py-2 bg-background-accent/50 border rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:border-transparent ${
+                            speedError ? 'border-red-500 focus:ring-red-500' : 'border-slate-700/30 focus:ring-emerald-500'
+                        }`}
                     />
+                    {#if speedError}
+                        <p class="text-red-400 text-xs mt-1">{speedError}</p>
+                    {/if}
                 </div>
 
                 <!-- Camera FOV -->
@@ -217,11 +326,17 @@
                     </label>
                     <input
                         id="cameraFov"
-                        type="number"
-                        bind:value={cameraFov}
-                        placeholder="e.g., 84"
-                        class="w-full px-3 py-2 bg-background-accent/50 border border-slate-700/30 rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        type="text"
+                        bind:value={cameraFovInput}
+                        on:input={handleFovInput}
+                        placeholder={`${MIN_FOV}-${MAX_FOV}º`}
+                        class={`w-full px-3 py-2 bg-background-accent/50 border rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:border-transparent ${
+                            fovError ? 'border-red-500 focus:ring-red-500' : 'border-slate-700/30 focus:ring-emerald-500'
+                        }`}
                     />
+                    {#if fovError}
+                        <p class="text-red-400 text-xs mt-1">{fovError}</p>
+                    {/if}
                 </div>
             </div>
 
@@ -234,8 +349,13 @@
                     Cancel
                 </button>
                 <button
-                    class="flex-1 px-4 py-2 grad-fill text-white rounded-md font-semibold"
+                    class={`flex-1 px-4 py-2 text-white rounded-md font-semibold transition-colors duration-200 ${
+                        isSaveDisabled
+                            ? "bg-slate-600 cursor-not-allowed"
+                            : "grad-fill hover:opacity-90"
+                    }`}
                     on:click={saveDroneSettings}
+                    disabled={isSaveDisabled}
                 >
                     Save Settings
                 </button>
