@@ -4,8 +4,8 @@
 
     const ALTITUDE = 100;
     const OVERLAP = 55;
-    const MIN_SPEED = 5; // Minimum reasonable speed in km/h
-    const MAX_SPEED = 200; // Maximum reasonable speed in km/h
+    const MIN_SPEED = 0.5; // Minimum reasonable speed in m/s
+    const MAX_SPEED = 15; // Maximum reasonable speed in m/s
     const MIN_FOV = 10; // Minimum reasonable FOV
     const MAX_FOV = 180; // Maximum FOV
 
@@ -44,10 +44,10 @@
                 speedError = "Speed must be a valid number";
                 droneSpeed = undefined;
             } else if (speed < MIN_SPEED) {
-                speedError = `Speed must be at least ${MIN_SPEED} km/h`;
+                speedError = `Speed must be at least ${MIN_SPEED} m/s`;
                 droneSpeed = undefined;
             } else if (speed > MAX_SPEED) {
-                speedError = `Speed must not exceed ${MAX_SPEED} km/h`;
+                speedError = `Speed must not exceed ${MAX_SPEED} m/s`;
                 droneSpeed = undefined;
             } else {
                 speedError = "";
@@ -88,6 +88,10 @@
 
     function formatSearchArea(area: number | undefined | null) {
         return area ? `${area.toFixed(2)} km²` : "—";
+    }
+
+    function formatFlightTime(time: number | undefined | null) {
+        return time ? `${time.toFixed(2)} mins` : "-";
     }
 
     function openDronePopup() {
@@ -204,7 +208,7 @@
                     <div class="w-2 h-2 bg-emerald-500 rounded-full"></div>
                 </div>
                 <p class="text-white font-mono text-lg">
-                    {formatSearchArea($flightPathResultStore?.est_flight_time)}
+                    {formatFlightTime($flightPathResultStore?.est_flight_time)}
                 </p>
             </div>
         </div>
@@ -227,7 +231,7 @@
                 {#if $droneStore?.model && $droneStore?.speed && $droneStore?.fov}
                     <p class="text-white font-mono text-sm">
                         Model: {$droneStore.model}<br />
-                        Speed: {$droneStore.speed} km/h<br />
+                        Speed: {$droneStore.speed} m/s<br />
                         FOV: {$droneStore.fov}&deg;
                     </p>
                 {:else}
@@ -299,7 +303,7 @@
                         for="droneSpeed"
                         class="block text-slate-400 text-sm font-medium mb-2"
                     >
-                        Speed (km/h)
+                        Speed (m/s)
                     </label>
                     <input
                         id="droneSpeed"
