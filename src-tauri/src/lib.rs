@@ -1,4 +1,5 @@
 mod flight_path;
+mod writer;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

@@ -1,3 +1,4 @@
+use crate::writer::write_wqml;
 use gdal::Dataset;
 use geo::Area;
 use geo::{
@@ -19,18 +20,25 @@ pub struct Drone {
     pub speed: f64,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy)]
+pub struct CoverageRect {
+    pub coords: [[f64; 2]; 4],
+    pub center: [f64; 2],
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct FlightPlanResult {
-    pub waypoints: Vec<[f64; 2]>,
+    pub waypoints: Vec<Waypoint>,
     pub search_area: f64,
     pub est_flight_time: f64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone)]
 pub struct Waypoint {
-    position: [f64; 2],
-    bearing: f64,
-    altitude: f64,
+    pub coverage_rect: CoverageRect,
+    pub position: [f64; 2],
+    pub bearing: f64,
+    pub altitude: f64,
 }
 
 #[tauri::command]
@@ -45,22 +53,15 @@ pub async fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> FlightP
     let angle = get_lawnmower_angle(&mbr_coords);
     let spacing = coverage * (100.0 - drone.overlap) / 100.0;
 
-    let waypoints = get_waypoints_with_slope_adjustment(
-        &polygon,
-        &mbr,
-        &angle,
-        &spacing,
-        &vrt_path,
-        drone.altitude,
-    );
-    let _ = write_flightpath_kml(&waypoints, &drone);
-    let positions: Vec<[f64; 2]> = waypoints.into_iter().map(|w| w.position).collect();
-
+    let waypoints =
+        get_waypoints_with_slope_adjustment(&polygon, &mbr, &angle, &spacing, &vrt_path, &drone);
+    //let _ = write_flightpath_kml(&waypoints, &drone);
+    write_wqml(&waypoints, &drone).await;
     let search_area = calculate_search_area(&polygon);
-    let est_flight_time = calculate_flight_time(&positions, drone.speed);
+    let est_flight_time = calculate_flight_time(&waypoints, drone.speed);
 
     FlightPlanResult {
-        waypoints: positions,
+        waypoints,
         search_area,
         est_flight_time,
     }
@@ -76,7 +77,7 @@ fn calculate_search_area(polygon: &Polygon) -> f64 {
     polygon_meters.unsigned_area() / 1_000_000.0
 }
 
-fn calculate_flight_time(waypoints: &[[f64; 2]], speed_ms: f64) -> f64 {
+fn calculate_flight_time(waypoints: &[Waypoint], speed_ms: f64) -> f64 {
     if waypoints.len() < 2 {
         return 0.0;
     }
@@ -91,10 +92,10 @@ fn calculate_flight_time(waypoints: &[[f64; 2]], speed_ms: f64) -> f64 {
 
         // Convert both points to meters
         let (x1, y1) = to_nztm
-            .convert((current[0], current[1]))
+            .convert((current.position[0], current.position[1]))
             .expect("Cannot convert current waypoint to NZTM");
         let (x2, y2) = to_nztm
-            .convert((next[0], next[1]))
+            .convert((next.position[0], next.position[1]))
             .expect("Cannot convert next waypoint to NZTM");
 
         // Calculate distance between waypoints in meters
@@ -160,6 +161,66 @@ fn calculate_slope_at_point(
     }
 }
 
+/// Returns the coverage rectangle representing the area that the photo
+/// from that waypoint creates. Used for rendering the coverage rectangles on the frontend
+fn generate_coverage_rect(
+    waypoint: &Coord,
+    slope: &f64,
+    angle: &f64,
+    drone: &Drone,
+) -> CoverageRect {
+
+    // TODO adjust photo height based on slope angle
+    let to_wgs84 =
+        Proj::new_known_crs("EPSG:2193", "EPSG:4326", None).expect("Failed to create projection");
+
+    let coverage = get_ground_coverage(drone);
+    let hw = coverage / 2.0;
+
+    let local_corners = [
+        [-hw, hw],  // top-left
+        [-hw, -hw], // bottom-left
+        [hw, -hw],  // bottom-right
+        [hw, hw],   // top-right
+    ];
+
+    // rotate and translate
+    let rotated_corners: Vec<[f64; 2]> = local_corners
+        .iter()
+        .map(|[x, y]| {
+            let xr = x * angle.cos() - y * angle.sin();
+            let yr = x * angle.sin() + y * angle.cos();
+            [waypoint.x + xr, waypoint.y + yr]
+        })
+        .collect();
+
+    // project to WGS84
+    let wgs84_coords: Vec<[f64; 2]> = rotated_corners
+        .iter()
+        .map(|[x, y]| {
+            let (lon, lat) = to_wgs84.convert((*x, *y)).expect("Projection failed");
+            [lon, lat]
+        })
+        .collect();
+
+    println!("{:?} {:?}", wgs84_coords, waypoint);
+
+    CoverageRect {
+        coords: [
+            wgs84_coords[0],
+            wgs84_coords[1],
+            wgs84_coords[2],
+            wgs84_coords[3],
+        ],
+        center: {
+            let (lon, lat) = to_wgs84
+                .convert((waypoint.x, waypoint.y))
+                .expect("Projection failed");
+            [lon, lat]
+        },
+    }
+}
+
 /// Returns a grid of waypoints that cover the entire search area using a lawnmower pattern
 /// with slope adjustment applied to each waypoint as it's created
 fn get_waypoints_with_slope_adjustment(
@@ -168,7 +229,7 @@ fn get_waypoints_with_slope_adjustment(
     angle: &f64,
     base_spacing: &f64,
     vrt_path: &str,
-    altitude: f64,
+    drone: &Drone,
 ) -> Vec<Waypoint> {
     let mut waypoints = Vec::new();
     let mbr_coords = mbr.exterior().coords().collect::<Vec<_>>();
@@ -183,21 +244,21 @@ fn get_waypoints_with_slope_adjustment(
         Ok(ds) => ds,
         Err(_) => {
             // Fallback to original method without slope adjustment
-            return get_waypoints_fallback(polygon, mbr, angle, base_spacing);
+            return get_waypoints_fallback(polygon, mbr, angle, base_spacing, drone);
         }
     };
 
     let rasterband = match dataset.rasterband(1) {
         Ok(band) => band,
         Err(_) => {
-            return get_waypoints_fallback(polygon, mbr, angle, base_spacing);
+            return get_waypoints_fallback(polygon, mbr, angle, base_spacing, drone);
         }
     };
 
     let geotransform = match dataset.geo_transform() {
         Ok(gt) => gt,
         Err(_) => {
-            return get_waypoints_fallback(polygon, mbr, angle, base_spacing);
+            return get_waypoints_fallback(polygon, mbr, angle, base_spacing, drone);
         }
     };
 
@@ -278,18 +339,22 @@ fn get_waypoints_with_slope_adjustment(
                 let slope_angle =
                     calculate_slope_at_point(point, &rasterband, &geotransform, raster_size);
 
+                let coverage_rect =
+                    generate_coverage_rect(&point, &slope_angle, &perp_angle, drone);
+
                 // Apply slope adjustment to this waypoint position
                 let adjusted_point = adjust_waypoint_for_slope(
                     point,
                     &rasterband,
                     &geotransform,
                     raster_size,
-                    altitude,
+                    drone.altitude,
                 );
 
                 // Convert adjusted waypoint back to lat/lon
                 if let Ok((lon, lat)) = to_wgs84.convert((adjusted_point.x, adjusted_point.y)) {
                     line_waypoints.push(Waypoint {
+                        coverage_rect,
                         position: [lon, lat],
                         bearing: 0.0,
                         altitude: 100.0,
@@ -335,6 +400,7 @@ fn get_waypoints_fallback(
     mbr: &Polygon,
     angle: &f64,
     spacing: &f64,
+    drone: &Drone,
 ) -> Vec<Waypoint> {
     let mut waypoints = Vec::new();
     let mbr_coords = mbr.exterior().coords().collect::<Vec<_>>();
@@ -428,10 +494,12 @@ fn get_waypoints_fallback(
         Proj::new_known_crs("EPSG:2193", "EPSG:4326", None).expect("Failed to create projection");
 
     for coord in waypoints {
+        let coverage_rect = generate_coverage_rect(&coord, &0.0, &perp_angle, drone);
         let (x, y) = to_wgs84
             .convert((coord.x, coord.y))
-            .expect("Cannot convert coords to wsg84");
+            .expect("Cannot convert coords to wgs84");
         waypoints_latlon.push(Waypoint {
+            coverage_rect,
             position: [x, y],
             bearing: 0.0,
             altitude: 100.0,

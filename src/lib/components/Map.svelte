@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import { areaCoordsStore, flightPathResultStore } from "$lib/stores/stores";
+    import { areaCoordsStore, flightPathResultStore, type FlightPathResult } from "$lib/stores/stores";
     import maplibregl from "maplibre-gl";
     import type {
         Feature,
@@ -152,7 +152,7 @@
                 (result: FlightPathResult | null) => {
                     if (!result) return;
 
-                    const coords = result.waypoints;
+                    const coords = result.waypoints.map(wp => wp.position);
 
                     if (!map || !map.getSource("flight-path")) return;
 
