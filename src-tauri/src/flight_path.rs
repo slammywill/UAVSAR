@@ -175,13 +175,14 @@ fn generate_coverage_rect(
 
     let base_coverage = get_ground_coverage(drone);
     let slope_adjusted_coverage = base_coverage / slope_magnitude.cos().max(0.1);
-    let hw = slope_adjusted_coverage / 2.0;
+    let hw = base_coverage / 2.0;
+    let hh = slope_adjusted_coverage / 2.0;
 
     let local_corners = [
-        [-hw, hw],  // top-left
-        [-hw, -hw], // bottom-left
-        [hw, -hw],  // bottom-right
-        [hw, hw],   // top-right
+        [-hw, hh],  // top-left
+        [-hw, -hh], // bottom-left
+        [hw, -hh],  // bottom-right
+        [hw, hh],   // top-right
     ];
 
     // rotate and translate
@@ -563,8 +564,8 @@ fn adjust_waypoint_for_slope(
         // Calculate slope direction (downhill)
         let slope_angle = dy.atan2(dx);
 
-        // Perpendicular direction to slope (90 degrees from downhill)
-        let perp_angle = slope_angle + std::f64::consts::PI / 2.0;
+        // Perpendicular direction to slope
+        let perp_angle = slope_angle + std::f64::consts::PI;
 
         // Shift waypoint by altitude distance perpendicular to slope
         let shift_x = altitude * perp_angle.cos();

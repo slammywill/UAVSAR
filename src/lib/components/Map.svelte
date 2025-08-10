@@ -176,6 +176,7 @@
                 id: "coverage-rects-fill",
                 type: "fill",
                 source: "coverage-rects",
+                layout: { visibility: "none" },
                 paint: {
                     "fill-color": coverageColor,
                     "fill-opacity": 0.1,
@@ -189,6 +190,7 @@
                 layout: {
                     "line-join": "round",
                     "line-cap": "round",
+                    "visibility": "none",
                 },
                 paint: {
                     "line-color": coverageColor,
@@ -209,6 +211,7 @@
                 layout: {
                     "line-join": "round",
                     "line-cap": "round",
+                    "visibility": "none",
                 },
                 paint: {
                     "line-color": coverageColor,
