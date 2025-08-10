@@ -30,4 +30,6 @@ image = "0.25.6"
 kml = "0.9.1"
 chrono = "0.4.41"
 gdal = { version = "0.18.0", features = ["bindgen"] }
+zip = "4.3.0"
+quick-xml = "0.38.1"
 

@@ -22,7 +22,7 @@ pub async fn create_kmz(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let dir_path = "../tmp/wpmz";
     fs::create_dir_all(dir_path)?;
-    
+
     // Ensure output directory exists
     fs::create_dir_all("../output")?;
 
@@ -79,7 +79,7 @@ fn create_template_kml() -> Result<String, Box<dyn std::error::Error>> {
 
     // Document element
     writer.write_event(Event::Start(BytesStart::new("Document")))?;
-    
+
     // Document name
     writer.write_event(Event::Start(BytesStart::new("name")))?;
     writer.write_event(Event::Text(BytesText::new("Template")))?;
@@ -145,7 +145,9 @@ pub fn generate_wpml(
     writer.write_event(Event::End(BytesEnd::new("wpml:takeOffSecurityHeight")))?;
 
     // Required: Global transitional speed
-    writer.write_event(Event::Start(BytesStart::new("wpml:globalTransitionalSpeed")))?;
+    writer.write_event(Event::Start(BytesStart::new(
+        "wpml:globalTransitionalSpeed",
+    )))?;
     writer.write_event(Event::Text(BytesText::new(&drone.speed.to_string())))?;
     writer.write_event(Event::End(BytesEnd::new("wpml:globalTransitionalSpeed")))?;
 
@@ -240,9 +242,13 @@ pub fn generate_wpml(
         // Required: Waypoint turn parameters
         writer.write_event(Event::Start(BytesStart::new("wpml:waypointTurnParam")))?;
         writer.write_event(Event::Start(BytesStart::new("wpml:waypointTurnMode")))?;
-        writer.write_event(Event::Text(BytesText::new("toPointAndStopWithDiscontinuityCurvature")))?;
+        writer.write_event(Event::Text(BytesText::new(
+            "toPointAndStopWithDiscontinuityCurvature",
+        )))?;
         writer.write_event(Event::End(BytesEnd::new("wpml:waypointTurnMode")))?;
-        writer.write_event(Event::Start(BytesStart::new("wpml:waypointTurnDampingDist")))?;
+        writer.write_event(Event::Start(BytesStart::new(
+            "wpml:waypointTurnDampingDist",
+        )))?;
         writer.write_event(Event::Text(BytesText::new("0")))?;
         writer.write_event(Event::End(BytesEnd::new("wpml:waypointTurnDampingDist")))?;
         writer.write_event(Event::End(BytesEnd::new("wpml:waypointTurnParam")))?;
@@ -250,24 +256,24 @@ pub fn generate_wpml(
         // Action group for gimbal control and photo taking (if waypoint has actions)
         if waypoint.bearing != 0.0 {
             writer.write_event(Event::Start(BytesStart::new("wpml:actionGroup")))?;
-            
+
             // Action group properties
             writer.write_event(Event::Start(BytesStart::new("wpml:actionGroupId")))?;
             writer.write_event(Event::Text(BytesText::new(&i.to_string())))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:actionGroupId")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:actionGroupStartIndex")))?;
             writer.write_event(Event::Text(BytesText::new(&i.to_string())))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:actionGroupStartIndex")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:actionGroupEndIndex")))?;
             writer.write_event(Event::Text(BytesText::new(&i.to_string())))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:actionGroupEndIndex")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:actionGroupMode")))?;
             writer.write_event(Event::Text(BytesText::new("sequence")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:actionGroupMode")))?;
-            
+
             // Action trigger
             writer.write_event(Event::Start(BytesStart::new("wpml:actionTrigger")))?;
             writer.write_event(Event::Start(BytesStart::new("wpml:actionTriggerType")))?;
@@ -280,53 +286,59 @@ pub fn generate_wpml(
             writer.write_event(Event::Start(BytesStart::new("wpml:actionId")))?;
             writer.write_event(Event::Text(BytesText::new("0")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:actionId")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:actionActuatorFunc")))?;
             writer.write_event(Event::Text(BytesText::new("gimbalRotate")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:actionActuatorFunc")))?;
-            
+
             // Gimbal rotate parameters
-            writer.write_event(Event::Start(BytesStart::new("wpml:actionActuatorFuncParam")))?;
+            writer.write_event(Event::Start(BytesStart::new(
+                "wpml:actionActuatorFuncParam",
+            )))?;
             writer.write_event(Event::Start(BytesStart::new("wpml:gimbalRotateMode")))?;
             writer.write_event(Event::Text(BytesText::new("absoluteAngle")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:gimbalRotateMode")))?;
-            
-            writer.write_event(Event::Start(BytesStart::new("wpml:gimbalPitchRotateEnable")))?;
+
+            writer.write_event(Event::Start(BytesStart::new(
+                "wpml:gimbalPitchRotateEnable",
+            )))?;
             writer.write_event(Event::Text(BytesText::new("1")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:gimbalPitchRotateEnable")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:gimbalPitchRotateAngle")))?;
-            writer.write_event(Event::Text(BytesText::new(&(-waypoint.bearing).to_string())))?;
+            writer.write_event(Event::Text(BytesText::new(
+                &(-waypoint.bearing).to_string(),
+            )))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:gimbalPitchRotateAngle")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:gimbalRollRotateEnable")))?;
             writer.write_event(Event::Text(BytesText::new("0")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:gimbalRollRotateEnable")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:gimbalRollRotateAngle")))?;
             writer.write_event(Event::Text(BytesText::new("0")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:gimbalRollRotateAngle")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:gimbalYawRotateEnable")))?;
             writer.write_event(Event::Text(BytesText::new("0")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:gimbalYawRotateEnable")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:gimbalYawRotateAngle")))?;
             writer.write_event(Event::Text(BytesText::new("0")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:gimbalYawRotateAngle")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:gimbalRotateTimeEnable")))?;
             writer.write_event(Event::Text(BytesText::new("0")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:gimbalRotateTimeEnable")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:gimbalRotateTime")))?;
             writer.write_event(Event::Text(BytesText::new("0")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:gimbalRotateTime")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:payloadPositionIndex")))?;
             writer.write_event(Event::Text(BytesText::new("0")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:payloadPositionIndex")))?;
-            
+
             writer.write_event(Event::End(BytesEnd::new("wpml:actionActuatorFuncParam")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:action")))?;
 
@@ -335,20 +347,22 @@ pub fn generate_wpml(
             writer.write_event(Event::Start(BytesStart::new("wpml:actionId")))?;
             writer.write_event(Event::Text(BytesText::new("1")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:actionId")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:actionActuatorFunc")))?;
             writer.write_event(Event::Text(BytesText::new("takePhoto")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:actionActuatorFunc")))?;
-            
-            writer.write_event(Event::Start(BytesStart::new("wpml:actionActuatorFuncParam")))?;
+
+            writer.write_event(Event::Start(BytesStart::new(
+                "wpml:actionActuatorFuncParam",
+            )))?;
             writer.write_event(Event::Start(BytesStart::new("wpml:fileSuffix")))?;
             writer.write_event(Event::Text(BytesText::new(&format!("point{}", i))))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:fileSuffix")))?;
-            
+
             writer.write_event(Event::Start(BytesStart::new("wpml:payloadPositionIndex")))?;
             writer.write_event(Event::Text(BytesText::new("0")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:payloadPositionIndex")))?;
-            
+
             writer.write_event(Event::End(BytesEnd::new("wpml:actionActuatorFuncParam")))?;
             writer.write_event(Event::End(BytesEnd::new("wpml:action")))?;
 

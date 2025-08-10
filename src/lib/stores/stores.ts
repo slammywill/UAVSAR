@@ -27,7 +27,7 @@ export interface Waypoint {
 }
 
 export interface CoverageRect {
-    coords: [Coordinate],
+    coords: Coordinate[][],
     center: Coordinate
 }
 

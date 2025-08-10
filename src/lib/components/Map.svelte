@@ -1,6 +1,10 @@
 <script lang="ts">
     import { onMount } from "svelte";
-    import { areaCoordsStore, flightPathResultStore, type FlightPathResult } from "$lib/stores/stores";
+    import {
+        areaCoordsStore,
+        flightPathResultStore,
+        type FlightPathResult,
+    } from "$lib/stores/stores";
     import maplibregl from "maplibre-gl";
     import type {
         Feature,
@@ -15,6 +19,8 @@
     let isDragging = false;
     let selectedPointId: number | null = null;
     let map: maplibregl.Map;
+    let coverageVisible = false;
+    let coverageColor = "#0000FF";
 
     function resetArea() {
         area_coordinates = [];
@@ -30,7 +36,7 @@
         };
 
         const flightPathSource = map?.getSource(
-            "flight-path"
+            "flight-path",
         ) as maplibregl.GeoJSONSource;
         const pointSource = map?.getSource(
             "click-points",
@@ -38,12 +44,47 @@
         const polygonSource = map?.getSource(
             "drawn-polygon",
         ) as maplibregl.GeoJSONSource;
+        const coverageRectsSource = map?.getSource(
+            "coverage-rects",
+        ) as maplibregl.GeoJSONSource;
+        const coverageLinesSource = map?.getSource(
+            "coverage-lines",
+        ) as maplibregl.GeoJSONSource;
 
         if (pointSource && polygonSource && flightPathSource) {
             flightPathSource.setData(emptyPointData);
             pointSource.setData(emptyPointData);
             polygonSource.setData(emptyPolygonData);
+            coverageRectsSource.setData(emptyPointData);
+            coverageLinesSource.setData(emptyPointData);
+        }
+    }
 
+    function toggleCoverage() {
+        coverageVisible = !coverageVisible;
+        const visibility = coverageVisible ? "visible" : "none";
+
+        if (map.getLayer("coverage-rects-fill")) {
+            map.setLayoutProperty(
+                "coverage-rects-fill",
+                "visibility",
+                visibility,
+            );
+        }
+        if (map.getLayer("coverage-rects-outline")) {
+            map.setLayoutProperty(
+                "coverage-rects-outline",
+                "visibility",
+                visibility,
+            );
+        }
+
+        if (map.getLayer("coverage-lines-layer")) {
+            map.setLayoutProperty(
+                "coverage-lines-layer",
+                "visibility",
+                visibility,
+            );
         }
     }
 
@@ -126,6 +167,56 @@
                 },
             });
 
+            map.addSource("coverage-rects", {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: [] },
+            });
+
+            map.addLayer({
+                id: "coverage-rects-fill",
+                type: "fill",
+                source: "coverage-rects",
+                paint: {
+                    "fill-color": coverageColor,
+                    "fill-opacity": 0.1,
+                },
+            });
+
+            map.addLayer({
+                id: "coverage-rects-outline",
+                type: "line",
+                source: "coverage-rects",
+                layout: {
+                    "line-join": "round",
+                    "line-cap": "round",
+                },
+                paint: {
+                    "line-color": coverageColor,
+                    "line-width": 1,
+                    "line-opacity": 0.2,
+                },
+            });
+
+            map.addSource("coverage-lines", {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: [] },
+            });
+
+            map.addLayer({
+                id: "coverage-lines-layer",
+                type: "line",
+                source: "coverage-lines",
+                layout: {
+                    "line-join": "round",
+                    "line-cap": "round",
+                },
+                paint: {
+                    "line-color": coverageColor,
+                    "line-width": 2,
+                    "line-dasharray": [1, 2],
+                },
+            });
+
             map.addSource("flight-path", {
                 type: "geojson",
                 data: {
@@ -152,22 +243,29 @@
                 (result: FlightPathResult | null) => {
                     if (!result) return;
 
-                    const coords = result.waypoints.map(wp => wp.position);
+                    // Flight path lines
+                    const coords = result.waypoints.map((wp) => wp.position);
 
-                    if (!map || !map.getSource("flight-path")) return;
+                    if (
+                        !map ||
+                        !map.getSource("flight-path") ||
+                        !map.getSource("coverage-rects")
+                    )
+                        return;
 
-                    const source = map.getSource(
+                    const fp_source = map.getSource(
                         "flight-path",
                     ) as maplibregl.GeoJSONSource;
 
                     if (coords.length < 2) {
-                        source.setData({
+                        fp_source.setData({
                             type: "FeatureCollection",
                             features: [],
                         });
                         return;
                     }
 
+                    // waypoint lines
                     const lineFeature: Feature<LineString> = {
                         type: "Feature",
                         geometry: {
@@ -182,7 +280,48 @@
                         features: [lineFeature],
                     };
 
-                    source.setData(flightPathData);
+                    fp_source.setData(flightPathData);
+
+                    // Coverage rects
+                    const rectFeatures = result.waypoints.map((wp) => ({
+                        type: "Feature",
+                        geometry: {
+                            type: "Polygon",
+                            coordinates: [wp.coverage_rect.coords],
+                        },
+                        properties: {
+                            center: wp.coverage_rect.center,
+                        },
+                    }));
+
+                    const coverageRectSource = map.getSource(
+                        "coverage-rects",
+                    ) as maplibregl.GeoJSONSource;
+                    coverageRectSource.setData({
+                        type: "FeatureCollection",
+                        features: rectFeatures,
+                    });
+
+                    // coverage-waypoint connector lines
+                    const lineFeatures = result.waypoints.map((wp) => ({
+                        type: "Feature",
+                        geometry: {
+                            type: "LineString",
+                            coordinates: [
+                                wp.position, // waypoint
+                                wp.coverage_rect.center, // rectangle center
+                            ],
+                        },
+                        properties: {},
+                    }));
+
+                    const coverageLinesSource = map.getSource(
+                        "coverage-lines",
+                    ) as maplibregl.GeoJSONSource;
+                    coverageLinesSource.setData({
+                        type: "FeatureCollection",
+                        features: lineFeatures,
+                    });
                 },
             );
         });
@@ -322,6 +461,12 @@
             class="p-2 text-md font-bold text-black bg-white rounded-sm hover:bg-neutral-100 shadow-[0_0_0_2px_rgba(0,0,0,0.1)]"
         >
             Reset Area
+        </button>
+        <button
+            on:click={toggleCoverage}
+            class="p-2 text-md font-bold text-black bg-white rounded-sm hover:bg-neutral-100 shadow-[0_0_0_2px_rgba(0,0,0,0.1)]"
+        >
+            Toggle Coverage
         </button>
     </div>
 </div>

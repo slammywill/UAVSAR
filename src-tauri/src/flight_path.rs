@@ -22,7 +22,7 @@ pub struct Drone {
 
 #[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct CoverageRect {
-    pub coords: [[f64; 2]; 4],
+    pub coords: [[f64; 2]; 5],
     pub center: [f64; 2],
 }
 
@@ -165,17 +165,17 @@ fn calculate_slope_at_point(
 /// from that waypoint creates. Used for rendering the coverage rectangles on the frontend
 fn generate_coverage_rect(
     waypoint: &Coord,
-    slope: &f64,
+    slope_magnitude: &f64,
     angle: &f64,
     drone: &Drone,
 ) -> CoverageRect {
-
     // TODO adjust photo height based on slope angle
     let to_wgs84 =
         Proj::new_known_crs("EPSG:2193", "EPSG:4326", None).expect("Failed to create projection");
 
-    let coverage = get_ground_coverage(drone);
-    let hw = coverage / 2.0;
+    let base_coverage = get_ground_coverage(drone);
+    let slope_adjusted_coverage = base_coverage / slope_magnitude.cos().max(0.1);
+    let hw = slope_adjusted_coverage / 2.0;
 
     let local_corners = [
         [-hw, hw],  // top-left
@@ -203,7 +203,6 @@ fn generate_coverage_rect(
         })
         .collect();
 
-    println!("{:?} {:?}", wgs84_coords, waypoint);
 
     CoverageRect {
         coords: [
@@ -211,6 +210,7 @@ fn generate_coverage_rect(
             wgs84_coords[1],
             wgs84_coords[2],
             wgs84_coords[3],
+            wgs84_coords[0],
         ],
         center: {
             let (lon, lat) = to_wgs84
