@@ -5,12 +5,9 @@ use geo::{
     algorithm::MinimumRotatedRect, coordinate_position::CoordPos, Coord, CoordinatePosition,
     LineString, Polygon,
 };
-use kml::{Kml, KmlWriter};
 use nalgebra::{Vector2, Vector3};
 use proj::Proj;
 use serde::{Deserialize, Serialize};
-use std::io::Write;
-use std::{collections::HashMap, fs::File};
 
 #[derive(Serialize, Deserialize)]
 pub struct Drone {
@@ -519,11 +516,11 @@ fn adjust_waypoint_for_slope(
 ) -> Coord {
     let x = waypoint.x;
     let y = waypoint.y;
-    
+
     // Calculate slope using finite differences
     let pixel_size = geotransform[1].abs(); // assuming square pixels
     let sample_distance = pixel_size * 2.0; // sample 2 pixels away
-    
+
     // Get elevations in 4 directions
     let elevations = [
         get_elevation_at_point(
@@ -555,41 +552,41 @@ fn adjust_waypoint_for_slope(
             y - sample_distance,
         ),
     ];
-    
+
     if let [Some(e_east), Some(e_west), Some(e_north), Some(e_south)] = elevations {
         // Calculate partial derivatives (slope components)
         let dz_dx = (e_east - e_west) / (2.0 * sample_distance);
         let dz_dy = (e_north - e_south) / (2.0 * sample_distance);
-        
+
         // Vector in x-direction: (sample_distance, 0, dz_dx * sample_distance)
         let v_x = Vector3::new(sample_distance, 0.0, dz_dx * sample_distance);
         // Vector in y-direction: (0, sample_distance, dz_dy * sample_distance)
         let v_y = Vector3::new(0.0, sample_distance, dz_dy * sample_distance);
-        
+
         let normal = v_x.cross(&v_y);
-        
+
         let normal_unit = match normal.try_normalize(1e-10) {
             Some(n) => n,
             None => return waypoint, // Degenerate case (flat terrain)
         };
-        
+
         let vertical = Vector3::new(0.0, 0.0, 1.0);
-        
+
         let dot_product = normal_unit.dot(&vertical);
         let dot_clamped = dot_product.clamp(-1.0, 1.0);
         let slope_angle = dot_clamped.acos(); // angle from vertical
-        
+
         let horizontal_displacement = altitude * slope_angle.tan();
-        
+
         // Direction of displacement: project normal onto horizontal plane
         let horizontal_normal = Vector2::new(normal_unit.x, normal_unit.y);
         let horizontal_direction = match horizontal_normal.try_normalize(1e-10) {
             Some(dir) => dir,
             None => return waypoint, // Normal is purely vertical
         };
-        
+
         let displacement = horizontal_displacement * horizontal_direction;
-        
+
         Coord {
             x: x + displacement.x,
             y: y + displacement.y,
@@ -683,51 +680,4 @@ fn get_lawnmower_angle(mbr_coords: &[&Coord]) -> f64 {
     }
 
     longest_len_dy.atan2(longest_len_dx)
-}
-
-/// Creates a KML file containing the flight information for the drone
-fn write_flightpath_kml(waypoints: &[Waypoint], drone: &Drone) -> std::io::Result<()> {
-    let mut elements = Vec::new();
-
-    for (i, waypoint) in waypoints.iter().enumerate() {
-        let point = kml::types::Point {
-            coord: kml::types::Coord {
-                x: waypoint.position[0], // longitude
-                y: waypoint.position[1], // latitude
-                z: None,
-            },
-            extrude: false,
-            altitude_mode: kml::types::AltitudeMode::RelativeToGround,
-            attrs: HashMap::new(),
-        };
-
-        let placemark = kml::types::Placemark {
-            name: Some(format!("Waypoint {}", i + 1)),
-            description: Some(format!(
-                "Lat: {}, Lon: {}",
-                waypoint.position[1], waypoint.position[0]
-            )),
-            geometry: Some(kml::types::Geometry::Point(point)),
-            ..Default::default()
-        };
-
-        elements.push(Kml::Placemark(placemark));
-    }
-
-    let document = Kml::KmlDocument(kml::types::KmlDocument {
-        version: kml::types::KmlVersion::Unknown,
-        attrs: HashMap::new(),
-        elements,
-    });
-
-    let mut buf = Vec::new();
-    let mut writer = KmlWriter::from_writer(&mut buf);
-    writer.write(&document).unwrap();
-
-    let filename = format!("../output/flightpath_{}.kml", drone.model);
-    let mut file = File::create(&filename)?;
-
-    file.write_all(&buf)?;
-
-    Ok(())
 }

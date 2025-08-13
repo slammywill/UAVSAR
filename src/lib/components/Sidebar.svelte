@@ -1,6 +1,12 @@
 <script lang="ts">
-    import { flightPathResultStore, droneStore } from "$lib/stores/stores";
+    import {
+        flightPathResultStore,
+        droneStore,
+        type Drone,
+    } from "$lib/stores/stores";
     import { generateFlightPath } from "$lib/common/common";
+    import { saveDroneTypes, loadDroneTypes } from "$lib/stores/droneTypes";
+    import { onMount } from "svelte";
 
     const ALTITUDE = 100;
     const OVERLAP = 55;
@@ -13,7 +19,11 @@
     let droneModel = "";
     let droneSpeed: number | undefined;
     let cameraFov: number | undefined;
-    
+
+    let droneTypes: Drone[] = [];
+
+    let selectedDrone = "Custom";
+
     // Input string values for controlled inputs
     let droneSpeedInput = "";
     let cameraFovInput = "";
@@ -22,6 +32,14 @@
     let modelError = "";
     let speedError = "";
     let fovError = "";
+
+    onMount(async () => {
+        try {
+            droneTypes = await loadDroneTypes();
+        } catch (error) {
+            console.error("Failed to load drone types:", error);
+        }
+    });
 
     // Reactive validation
     $: {
@@ -78,7 +96,7 @@
     }
 
     // Check if form is valid
-    $: isSaveDisabled = 
+    $: isSaveDisabled =
         !droneModel?.trim() ||
         droneSpeed === undefined ||
         cameraFov === undefined ||
@@ -99,12 +117,12 @@
         droneModel = $droneStore?.model || "";
         droneSpeedInput = $droneStore?.speed?.toString() || "";
         cameraFovInput = $droneStore?.fov?.toString() || "";
-        
+
         // Clear errors
         modelError = "";
         speedError = "";
         fovError = "";
-        
+
         showDronePopup = true;
     }
 
@@ -141,11 +159,11 @@
     function handleSpeedInput(event: Event) {
         const target = event.target as HTMLInputElement;
         // Allow only numbers and decimal point
-        const filtered = target.value.replace(/[^\d.]/g, '');
+        const filtered = target.value.replace(/[^\d.]/g, "");
         // Prevent multiple decimal points
-        const parts = filtered.split('.');
+        const parts = filtered.split(".");
         if (parts.length > 2) {
-            droneSpeedInput = parts[0] + '.' + parts.slice(1).join('');
+            droneSpeedInput = parts[0] + "." + parts.slice(1).join("");
         } else {
             droneSpeedInput = filtered;
         }
@@ -154,11 +172,11 @@
     function handleFovInput(event: Event) {
         const target = event.target as HTMLInputElement;
         // Allow only numbers and decimal point
-        const filtered = target.value.replace(/[^\d.]/g, '');
+        const filtered = target.value.replace(/[^\d.]/g, "");
         // Prevent multiple decimal points
-        const parts = filtered.split('.');
+        const parts = filtered.split(".");
         if (parts.length > 2) {
-            cameraFovInput = parts[0] + '.' + parts.slice(1).join('');
+            cameraFovInput = parts[0] + "." + parts.slice(1).join("");
         } else {
             cameraFovInput = filtered;
         }
@@ -278,23 +296,37 @@
                 <!-- Model Name -->
                 <div>
                     <label
-                        for="droneModel"
+                        for="dronePreset"
                         class="block text-slate-400 text-sm font-medium mb-2"
                     >
-                        Drone Model
+                        <select id="dronePreset" bind:value={selectedDrone}>
+                            {#each droneTypes as droneType}
+                                <option value={droneType}>{droneType}</option>
+                            {/each}
+                        </select>
+                        <label
+                            for="droneModel"
+                            class="block text-slate-400 text-sm font-medium mb-2"
+                        >
+                            Drone Model
+                        </label>
+                        <input
+                            id="droneModel"
+                            type="text"
+                            bind:value={droneModel}
+                            placeholder="e.g., DJI Mavic 3"
+                            class={`w-full px-3 py-2 bg-background-accent/50 border rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:border-transparent ${
+                                modelError
+                                    ? "border-red-500 focus:ring-red-500"
+                                    : "border-slate-700/30 focus:ring-emerald-500"
+                            }`}
+                        />
+                        {#if modelError}
+                            <p class="text-red-400 text-xs mt-1">
+                                {modelError}
+                            </p>
+                        {/if}
                     </label>
-                    <input
-                        id="droneModel"
-                        type="text"
-                        bind:value={droneModel}
-                        placeholder="e.g., DJI Mavic 3"
-                        class={`w-full px-3 py-2 bg-background-accent/50 border rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:border-transparent ${
-                            modelError ? 'border-red-500 focus:ring-red-500' : 'border-slate-700/30 focus:ring-emerald-500'
-                        }`}
-                    />
-                    {#if modelError}
-                        <p class="text-red-400 text-xs mt-1">{modelError}</p>
-                    {/if}
                 </div>
 
                 <!-- Speed -->
@@ -312,7 +344,9 @@
                         on:input={handleSpeedInput}
                         placeholder={`${MIN_SPEED}-${MAX_SPEED}`}
                         class={`w-full px-3 py-2 bg-background-accent/50 border rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:border-transparent ${
-                            speedError ? 'border-red-500 focus:ring-red-500' : 'border-slate-700/30 focus:ring-emerald-500'
+                            speedError
+                                ? "border-red-500 focus:ring-red-500"
+                                : "border-slate-700/30 focus:ring-emerald-500"
                         }`}
                     />
                     {#if speedError}
@@ -335,7 +369,9 @@
                         on:input={handleFovInput}
                         placeholder={`${MIN_FOV}-${MAX_FOV}º`}
                         class={`w-full px-3 py-2 bg-background-accent/50 border rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:border-transparent ${
-                            fovError ? 'border-red-500 focus:ring-red-500' : 'border-slate-700/30 focus:ring-emerald-500'
+                            fovError
+                                ? "border-red-500 focus:ring-red-500"
+                                : "border-slate-700/30 focus:ring-emerald-500"
                         }`}
                     />
                     {#if fovError}
