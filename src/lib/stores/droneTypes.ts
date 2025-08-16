@@ -3,12 +3,12 @@ import {
     writeTextFile,
     readTextFile,
     mkdir,
-    create,
     exists,
 } from "@tauri-apps/plugin-fs";
 import { type Drone } from "$lib/stores/stores";
+import { resolveResource } from "@tauri-apps/api/path";
 
-const FILE_NAME = "drone_types.json";
+const FILE_NAME = "drone_list.json";
 const DATA_DIR = BaseDirectory.AppLocalData;
 const SUBDIR = "uavsar";
 
@@ -42,8 +42,9 @@ async function ensureDataDir(filename: string = FILE_NAME) {
         baseDir: DATA_DIR,
     });
     if (!fileExists) {
-        const file = await create(`${SUBDIR}/${filename}`, { baseDir: DATA_DIR });
-        await file.write(new TextEncoder().encode("[]"));
-        await file.close();
+        // Copy default drone list into DATA_DIR
+        const srcPath = await resolveResource(`resources/${filename}`);
+        const bytes = await readTextFile(srcPath);
+        await writeTextFile(`${SUBDIR}/${filename}`, bytes, { baseDir: DATA_DIR });
     }
 }

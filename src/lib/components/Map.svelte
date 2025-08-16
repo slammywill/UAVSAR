@@ -461,7 +461,7 @@
     <div class="z-10 m-2 absolute">
         <button
             on:click={resetArea}
-            class="p-2 text-md font-bold text-black bg-white rounded-sm hover:bg-neutral-100 shadow-[0_0_0_2px_rgba(0,0,0,0.1)]"
+            class="p-2 text-md font-bold text-black bg-white rounded-sm hover:bg-neutral-100 shadow-[0_0_0_2px_rgba(0,0,0,0.1)] mr-2"
         >
             Reset Area
         </button>

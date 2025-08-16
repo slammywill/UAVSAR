@@ -298,35 +298,35 @@
                     <label
                         for="dronePreset"
                         class="block text-slate-400 text-sm font-medium mb-2"
-                    >
-                        <select id="dronePreset" bind:value={selectedDrone}>
-                            {#each droneTypes as droneType}
-                                <option value={droneType}>{droneType}</option>
-                            {/each}
-                        </select>
-                        <label
-                            for="droneModel"
-                            class="block text-slate-400 text-sm font-medium mb-2"
-                        >
-                            Drone Model
-                        </label>
-                        <input
-                            id="droneModel"
-                            type="text"
-                            bind:value={droneModel}
-                            placeholder="e.g., DJI Mavic 3"
-                            class={`w-full px-3 py-2 bg-background-accent/50 border rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:border-transparent ${
-                                modelError
-                                    ? "border-red-500 focus:ring-red-500"
-                                    : "border-slate-700/30 focus:ring-emerald-500"
-                            }`}
-                        />
-                        {#if modelError}
-                            <p class="text-red-400 text-xs mt-1">
-                                {modelError}
-                            </p>
-                        {/if}
+                        >Drone Preset
                     </label>
+                    <select id="dronePreset" bind:value={selectedDrone}>
+                        {#each droneTypes as droneType}
+                            <option value={droneType}>{droneType.model}</option>
+                        {/each}
+                    </select>
+                    <label
+                        for="droneModel"
+                        class="block text-slate-400 text-sm font-medium mb-2"
+                    >
+                        Drone Model
+                    </label>
+                    <input
+                        id="droneModel"
+                        type="text"
+                        bind:value={droneModel}
+                        placeholder="e.g., DJI Mavic 3"
+                        class={`w-full px-3 py-2 bg-background-accent/50 border rounded-md text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:border-transparent ${
+                            modelError
+                                ? "border-red-500 focus:ring-red-500"
+                                : "border-slate-700/30 focus:ring-emerald-500"
+                        }`}
+                    />
+                    {#if modelError}
+                        <p class="text-red-400 text-xs mt-1">
+                            {modelError}
+                        </p>
+                    {/if}
                 </div>
 
                 <!-- Speed -->

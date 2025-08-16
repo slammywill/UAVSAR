@@ -12,6 +12,13 @@
     "fs:allow-applocaldata-read",
     "fs:allow-applocaldata-read-recursive",
     "fs:allow-applocaldata-write",
-    "fs:allow-applocaldata-write-recursive"
+    "fs:allow-applocaldata-write-recursive",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-mkdir",
+    "fs:allow-create",
+    "fs:allow-exists",
+
+    "fs:allow-resource-read-recursive"
   ]
 }

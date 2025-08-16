@@ -21,11 +21,13 @@ export async function generateFlightPath() {
             "generate_flightpath",
             {
                 coords: area_coordinates,
-                drone: drone
-            });
+                drone: drone,
+            },
+        );
         flightPathResultStore.set(flightPathResult);
     } catch (error) {
         console.error("Failed to generate flight path:", error);
         flightPathResultStore.set(null);
     }
 }
+
