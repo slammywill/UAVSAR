@@ -12,3 +12,4 @@
 .grad-fill {
     @apply rounded-lg bg-gradient-to-bl from-accent-1 to-accent-2 hover:from-accent-1-dark hover:to-accent-2-dark transition-colors duration-200;
 }
+

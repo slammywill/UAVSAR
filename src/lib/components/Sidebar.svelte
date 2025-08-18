@@ -41,7 +41,21 @@
         }
     });
 
-    // Reactive validation
+    // Autofill fields from drone preset
+    $: if (selectedDrone && selectedDrone !== "Custom") {
+        const preset = droneTypes.find((d) => d.model === selectedDrone);
+        if (preset) {
+            droneModel = preset.model;
+            droneSpeedInput = preset.speed.toString();
+            cameraFovInput = preset.fov.toString();
+        }
+    } else if (selectedDrone === "Custom") {
+        // Clear fields so user can type their own
+        droneModel = "";
+        droneSpeedInput = "";
+        cameraFovInput = "";
+    }
+
     $: {
         // Validate model
         if (!droneModel?.trim()) {
@@ -300,11 +314,23 @@
                         class="block text-slate-400 text-sm font-medium mb-2"
                         >Drone Preset
                     </label>
-                    <select id="dronePreset" bind:value={selectedDrone}>
-                        {#each droneTypes as droneType}
-                            <option value={droneType}>{droneType.model}</option>
-                        {/each}
-                    </select>
+                    <div class="relative mb-4">
+                        <select
+                            id="dronePreset"
+                            bind:value={selectedDrone}
+                            class="w-full appearance-none px-3 py-2 bg-background-accent/50 border border-slate-700/30 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent pr-10"
+                        >
+                            {#each droneTypes as droneType}
+                                <option
+                                    value={droneType.model}
+                                    class="bg-background text-white"
+                                >
+                                    {droneType.model}
+                                </option>
+                            {/each}
+                            <option value="Custom"> Custom </option>
+                        </select>
+                    </div>
                     <label
                         for="droneModel"
                         class="block text-slate-400 text-sm font-medium mb-2"
