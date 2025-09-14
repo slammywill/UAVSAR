@@ -11,7 +11,7 @@
     const ALTITUDE = 100;
     const OVERLAP = 55;
     const MIN_SPEED = 0.5; // Minimum reasonable speed in m/s
-    const MAX_SPEED = 15; // Maximum reasonable speed in m/s
+    const MAX_SPEED = 30; // Maximum reasonable speed in m/s
     const MIN_FOV = 10; // Minimum reasonable FOV
     const MAX_FOV = 180; // Maximum FOV
 

@@ -1,9 +1,23 @@
 [
   {
     "model": "DJI Mavic 3",
-    "fov": "100",
+    "fov": "84",
     "altitude": "100",
     "overlap": "55",
-    "speed": "10"
+    "speed": "21"
+  },
+  {
+    "model": "DJI Mavic 3 Pro",
+    "fov": "84",
+    "altitude": "100",
+    "overlap": "55",
+    "speed": "21"
+  },
+  {
+    "model": "DJI Matrice 30T",
+    "fov": "84",
+    "altitude": "100",
+    "overlap": "55",
+    "speed": "23"
   }
 ]

@@ -27,6 +27,7 @@ pub struct CoverageRect {
 #[derive(Serialize, Deserialize)]
 pub struct FlightPlanResult {
     pub waypoints: Vec<Waypoint>,
+    pub heading_angle: f64,
     pub search_area: f64,
     pub est_flight_time: f64,
 }
@@ -48,18 +49,18 @@ pub async fn generate_flightpath(coords: Vec<[f64; 2]>, drone: Drone) -> FlightP
     let vrt_path = String::from("../data/elevation.vrt");
 
     let coverage = get_ground_coverage(&drone);
-    let angle = get_lawnmower_angle(&mbr_coords);
+    let heading_angle = get_lawnmower_angle(&mbr_coords);
     let spacing = coverage * (100.0 - drone.overlap) / 100.0;
 
     let waypoints =
-        get_waypoints_with_slope_adjustment(&polygon, &mbr, &angle, &spacing, &vrt_path, &drone);
-    //let _ = write_flightpath_kml(&waypoints, &drone);
-    write_wqml(&waypoints, &drone).await;
+        get_waypoints_with_slope_adjustment(&polygon, &mbr, &heading_angle, &spacing, &vrt_path, &drone);
+    write_wqml(&waypoints, &heading_angle, &drone).await;
     let search_area = calculate_search_area(&polygon);
     let est_flight_time = calculate_flight_time(&waypoints, drone.speed);
 
     FlightPlanResult {
         waypoints,
+        heading_angle,
         search_area,
         est_flight_time,
     }

@@ -15,6 +15,7 @@ export interface Drone {
 
 export interface FlightPathResult {
     waypoints: Waypoint[];
+    heading_angle: number,
     search_area: number,
     est_flight_time: number,
 }
