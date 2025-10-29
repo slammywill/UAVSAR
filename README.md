@@ -1,7 +1,7 @@
 # UAVSAR
 
 ## About
-UAVSAR is a prototype flight planning tool for unmanned aerial vehicles (UAVs) designed to support search and rescue (SAR) operations. Given a polygonal area and drone camera specifications (field of view, altitude, desired image overlap), it generates a zigzag flight path ensuring full photographic coverage of the area. The application is implemented as a cross-platform desktop app using Tauri and integrates mapping capabilities via MapLibre.
+UAVSAR is a prototype flight planning tool for unmanned aerial vehicles (UAVs) designed to support search and rescue (SAR) operations. Given a polygonal area and drone camera specifications (field of view, altitude, desired image overlap), it generates a zigzag flight path ensuring full photographic coverage of the area, taking into account the gradient of the slope to take photos that are perpendicular to the slope in the centre of the photograph. The application also generates a KMZ file that can be loaded onto a DJI drone for an automated flight plan. The application is implemented as a cross-platform desktop app using Tauri and integrates mapping capabilities via MapLibre.
 
 The application is designed with usability and learnability as it's core tenant, to support SAR volunteers in using the tool in SAR operations without extensive training.
 
